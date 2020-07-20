@@ -1,11 +1,15 @@
-__author__ = 'tsungyi'
+from collections import defaultdict, OrderedDict
+import copy
+import datetime
+import logging
+import time
 
 import numpy as np
-import datetime
-import time
-from collections import defaultdict
+
 from . import mask as maskUtils
-import copy
+
+logger = logging.getLogger(__name__)
+
 
 class COCOeval:
     # Interface for evaluating detection on the Microsoft COCO dataset.
@@ -65,7 +69,7 @@ class COCOeval:
         :return: None
         '''
         if not iouType:
-            print('iouType not specified. use default iouType segm')
+            logger.info('iouType not specified. use default iouType segm')
         self.cocoGt   = cocoGt              # ground truth COCO API
         self.cocoDt   = cocoDt              # detections COCO API
         self.evalImgs = defaultdict(list)   # per-image per-category evaluation results [KxAxI] elements
@@ -74,7 +78,7 @@ class COCOeval:
         self._dts = defaultdict(list)       # dt for evaluation
         self.params = Params(iouType=iouType) # parameters
         self._paramsEval = {}               # parameters for evaluation
-        self.stats = []                     # result summarization
+        self.stats = {}                     # result summarization
         self.ious = {}                      # ious between all gts and dts
         if not cocoGt is None:
             self.params.imgIds = sorted(cocoGt.getImgIds())
@@ -124,13 +128,13 @@ class COCOeval:
         :return: None
         '''
         tic = time.time()
-        print('Running per image evaluation...')
+        logger.info('Running per image evaluation...')
         p = self.params
         # add backward compatibility if useSegm is specified in params
-        if not p.useSegm is None:
+        if p.useSegm is not None:
             p.iouType = 'segm' if p.useSegm == 1 else 'bbox'
-            print('useSegm (deprecated) is not None. Running {} evaluation'.format(p.iouType))
-        print('Evaluate annotation type *{}*'.format(p.iouType))
+            logger.warning('useSegm (deprecated) is not None. Running {} evaluation'.format(p.iouType))
+        logger.info('Evaluate annotation type *{}*'.format(p.iouType))
         p.imgIds = list(np.unique(p.imgIds))
         if p.useCats:
             p.catIds = list(np.unique(p.catIds))
@@ -158,7 +162,7 @@ class COCOeval:
              ]
         self._paramsEval = copy.deepcopy(self.params)
         toc = time.time()
-        print('DONE (t={:0.2f}s).'.format(toc-tic))
+        logger.info('DONE (t={:0.2f}s).'.format(toc-tic))
 
     def computeIoU(self, imgId, catId):
         p = self.params
@@ -318,10 +322,10 @@ class COCOeval:
         :param p: input params for evaluation
         :return: None
         '''
-        print('Accumulating evaluation results...')
+        logger.info('Accumulating evaluation results...')
         tic = time.time()
         if not self.evalImgs:
-            print('Please run evaluate() first')
+            logger.warning('Please run evaluate() first')
         # allows input customized parameters
         if p is None:
             p = self.params
@@ -417,14 +421,28 @@ class COCOeval:
             'scores': scores,
         }
         toc = time.time()
-        print('DONE (t={:0.2f}s).'.format( toc-tic))
+        logger.info('DONE (t={:0.2f}s).'.format( toc-tic))
 
     def summarize(self):
         '''
         Compute and display summary metrics for evaluation results.
         Note this functin can *only* be applied on the default parameter setting
         '''
-        def _summarize( ap=1, iouThr=None, areaRng='all', maxDets=100 ):
+        def _get_metric_key(ap=1, iouThr=None, areaRng='all', maxDets=100):
+            p = self.params
+            template = '{metric:<4s}{thr:<9}/@{area:>6s}(max_dets={dets:>3d})'
+            str_ = template.format(
+                metric=('mAP' if ap == 1 else 'mAR'),
+                thr=(
+                    '{:0.2f}:{:0.2f}'.format(p.iouThrs[0], p.iouThrs[-1])
+                    if iouThr is None
+                    else '{:0.2f}'.format(iouThr)
+                ),
+                area=areaRng,
+                dets=maxDets,
+            )
+            return str_
+        def _summarize(ap=1, iouThr=None, areaRng='all', maxDets=100):
             p = self.params
             iStr = ' {:<18} {} @[ IoU={:<9} | area={:>6s} | maxDets={:>3d} ] = {:0.3f}'
             titleStr = 'Average Precision' if ap == 1 else 'Average Recall'
@@ -453,38 +471,53 @@ class COCOeval:
                 mean_s = -1
             else:
                 mean_s = np.mean(s[s>-1])
-            print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
-            return mean_s
+            logger.info(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
+            key = _get_metric_key(ap, iouThr, areaRng, maxDets)
+            return key, mean_s
         def _summarizeDets():
-            stats = np.zeros((12,))
-            stats[0] = _summarize(1)
-            stats[1] = _summarize(1, iouThr=.5, maxDets=self.params.maxDets[2])
-            stats[2] = _summarize(1, iouThr=.75, maxDets=self.params.maxDets[2])
-            stats[3] = _summarize(1, areaRng='small', maxDets=self.params.maxDets[2])
-            stats[4] = _summarize(1, areaRng='medium', maxDets=self.params.maxDets[2])
-            stats[5] = _summarize(1, areaRng='large', maxDets=self.params.maxDets[2])
-            stats[6] = _summarize(0, maxDets=self.params.maxDets[0])
-            stats[7] = _summarize(0, maxDets=self.params.maxDets[1])
-            stats[8] = _summarize(0, maxDets=self.params.maxDets[2])
-            stats[9] = _summarize(0, areaRng='small', maxDets=self.params.maxDets[2])
-            stats[10] = _summarize(0, areaRng='medium', maxDets=self.params.maxDets[2])
-            stats[11] = _summarize(0, areaRng='large', maxDets=self.params.maxDets[2])
+            params = [
+                dict(ap=1),
+                dict(ap=1, iouThr=0.5, maxDets=self.params.maxDets[2]),
+                dict(ap=1, iouThr=0.75, maxDets=self.params.maxDets[2]),
+                dict(ap=1, areaRng='small', maxDets=self.params.maxDets[2]),
+                dict(ap=1, areaRng='medium', maxDets=self.params.maxDets[2]),
+                dict(ap=1, areaRng='large', maxDets=self.params.maxDets[2]),
+                dict(ap=0, maxDets=self.params.maxDets[0]),
+                dict(ap=0, maxDets=self.params.maxDets[1]),
+                dict(ap=0, maxDets=self.params.maxDets[2]),
+                dict(ap=0, areaRng='small', maxDets=self.params.maxDets[2]),
+                dict(ap=0, areaRng='medium', maxDets=self.params.maxDets[2]),
+                dict(ap=0, areaRng='large', maxDets=self.params.maxDets[2]),
+            ]
+
+            stats = OrderedDict()
+            for args, kwargs in params:
+                key, value = _summarize(*args, **kwargs)
+                stats[key] = value
+
             return stats
         def _summarizeKps():
-            stats = np.zeros((10,))
-            stats[0] = _summarize(1, maxDets=20)
-            stats[1] = _summarize(1, maxDets=20, iouThr=.5)
-            stats[2] = _summarize(1, maxDets=20, iouThr=.75)
-            stats[3] = _summarize(1, maxDets=20, areaRng='medium')
-            stats[4] = _summarize(1, maxDets=20, areaRng='large')
-            stats[5] = _summarize(0, maxDets=20)
-            stats[6] = _summarize(0, maxDets=20, iouThr=.5)
-            stats[7] = _summarize(0, maxDets=20, iouThr=.75)
-            stats[8] = _summarize(0, maxDets=20, areaRng='medium')
-            stats[9] = _summarize(0, maxDets=20, areaRng='large')
+            params = [
+                dict(ap=1, maxDets=20),
+                dict(ap=1, maxDets=20, iouThr=0.5),
+                dict(ap=1, maxDets=20, iouThr=0.75),
+                dict(ap=1, maxDets=20, areaRng='medium'),
+                dict(ap=1, maxDets=20, areaRng='large'),
+                dict(ap=0, maxDets=20),
+                dict(ap=0, maxDets=20, iouThr=.5),
+                dict(ap=0, maxDets=20, iouThr=.75),
+                dict(ap=0, maxDets=20, areaRng='medium'),
+                dict(ap=0, maxDets=20, areaRng='large'),
+            ]
+
+            stats = OrderedDict()
+            for args, kwargs in params:
+                key, value = _summarize(*args, **kwargs)
+                stats[key] = value
+
             return stats
         if not self.eval:
-            raise Exception('Please run accumulate() first')
+            raise NotImplementedError('Please run accumulate() first')
         iouType = self.params.iouType
         if iouType == 'segm' or iouType == 'bbox':
             summarize = _summarizeDets

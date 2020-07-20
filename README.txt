@@ -11,5 +11,5 @@ After downloading the images and annotations, run the Matlab, Python, or Lua dem
 
 To install:
 -For Matlab, add coco/MatlabApi to the Matlab path (OSX/Linux binaries provided)
--For Python, run "make" under coco/PythonAPI
+-For Python, run "make" under coco/PythonAPI or `pip install git+https://github.com/bagxi/cocoapi.git@2.0.1#subdirectory=PythonAPI`
 -For Lua, run “luarocks make LuaAPI/rocks/coco-scm-1.rockspec” under coco/

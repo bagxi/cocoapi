@@ -1,5 +1,3 @@
-__author__ = 'tylin'
-__version__ = '2.0'
 # Interface for accessing the Microsoft COCO dataset.
 
 # Microsoft COCO is a large image dataset designed for object detection,
@@ -39,28 +37,31 @@ __version__ = '2.0'
 # COCO>getImgIds, COCO>loadAnns, COCO>loadCats,
 # COCO>loadImgs, COCO>annToMask, COCO>showAnns
 
-# Microsoft COCO Toolbox.      version 2.0
+# Microsoft COCO Toolbox.      version 2.0.1
 # Data, paper, and tutorials available at:  http://mscoco.org/
 # Code written by Piotr Dollar and Tsung-Yi Lin, 2014.
 # Licensed under the Simplified BSD License [see bsd.txt]
 
-import json
-import time
-import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
-import numpy as np
+from collections import defaultdict
 import copy
 import itertools
-from . import mask as maskUtils
+import json
+import logging
 import os
-from collections import defaultdict
 import sys
+import time
+
+import numpy as np
+
+from . import mask as maskUtils
+
 PYTHON_VERSION = sys.version_info[0]
 if PYTHON_VERSION == 2:
     from urllib import urlretrieve
 elif PYTHON_VERSION == 3:
     from urllib.request import urlretrieve
+
+logger = logging.getLogger(__name__)
 
 
 def _isArrayLike(obj):
@@ -68,7 +69,7 @@ def _isArrayLike(obj):
 
 
 class COCO:
-    def __init__(self, annotation_file=None):
+    def __init__(self, annotation_file=None, dataset=None):
         """
         Constructor of Microsoft COCO helper class for reading and visualizing annotations.
         :param annotation_file (str): location of annotation file
@@ -78,18 +79,19 @@ class COCO:
         # load dataset
         self.dataset,self.anns,self.cats,self.imgs = dict(),dict(),dict(),dict()
         self.imgToAnns, self.catToImgs = defaultdict(list), defaultdict(list)
-        if not annotation_file == None:
-            print('loading annotations into memory...')
+        if annotation_file is not None:
+            logger.info('loading annotations into memory...')
             tic = time.time()
             dataset = json.load(open(annotation_file, 'r'))
+        if dataset is not None:
             assert type(dataset)==dict, 'annotation file format {} not supported'.format(type(dataset))
-            print('Done (t={:0.2f}s)'.format(time.time()- tic))
+            logger.info('Done (t={:0.2f}s)'.format(time.time()- tic))
             self.dataset = dataset
             self.createIndex()
 
     def createIndex(self):
         # create index
-        print('creating index...')
+        logger.info('creating index...')
         anns, cats, imgs = {}, {}, {}
         imgToAnns,catToImgs = defaultdict(list),defaultdict(list)
         if 'annotations' in self.dataset:
@@ -109,7 +111,7 @@ class COCO:
             for ann in self.dataset['annotations']:
                 catToImgs[ann['category_id']].append(ann['image_id'])
 
-        print('index created!')
+        logger.info('index created!')
 
         # create class members
         self.anns = anns
@@ -236,6 +238,17 @@ class COCO:
         :param anns (array of object): annotations to display
         :return: None
         """
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.collections import PatchCollection
+            from matplotlib.patches import Polygon
+        except ImportError as ex:
+            logger.warning(
+                "matplotlib not available,"
+                " to install matplotlib, run `pip install matplotlib`."
+            )
+            raise ex
+
         if len(anns) == 0:
             return 0
         if 'segmentation' in anns[0] or 'keypoints' in anns[0]:
@@ -311,7 +324,7 @@ class COCO:
         res = COCO()
         res.dataset['images'] = [img for img in self.dataset['images']]
 
-        print('Loading and preparing results...')
+        logger.info('Loading and preparing results...')
         tic = time.time()
         if type(resFile) == str or (PYTHON_VERSION == 2 and type(resFile) == unicode):
             anns = json.load(open(resFile))
@@ -357,7 +370,7 @@ class COCO:
                 ann['area'] = (x1-x0)*(y1-y0)
                 ann['id'] = id + 1
                 ann['bbox'] = [x0,y0,x1-x0,y1-y0]
-        print('DONE (t={:0.2f}s)'.format(time.time()- tic))
+        logger.info('DONE (t={:0.2f}s)'.format(time.time()- tic))
 
         res.dataset['annotations'] = anns
         res.createIndex()
@@ -371,7 +384,7 @@ class COCO:
         :return:
         '''
         if tarDir is None:
-            print('Please specify target directory')
+            logger.warning('Please specify target directory')
             return -1
         if len(imgIds) == 0:
             imgs = self.imgs.values()
@@ -385,7 +398,7 @@ class COCO:
             fname = os.path.join(tarDir, img['file_name'])
             if not os.path.exists(fname):
                 urlretrieve(img['coco_url'], fname)
-            print('downloaded {}/{} images (t={:0.1f}s)'.format(i, N, time.time()- tic))
+            logger.info('downloaded {}/{} images (t={:0.1f}s)'.format(i, N, time.time()- tic))
 
     def loadNumpyAnnotations(self, data):
         """
@@ -393,15 +406,15 @@ class COCO:
         :param  data (numpy.ndarray)
         :return: annotations (python nested list)
         """
-        print('Converting ndarray to lists...')
+        logger.info('Converting ndarray to lists...')
         assert(type(data) == np.ndarray)
-        print(data.shape)
+        logger.info(data.shape)
         assert(data.shape[1] == 7)
         N = data.shape[0]
         ann = []
         for i in range(N):
             if i % 1000000 == 0:
-                print('{}/{}'.format(i,N))
+                logger.info('{}/{}'.format(i,N))
             ann += [{
                 'image_id'  : int(data[i, 0]),
                 'bbox'  : [ data[i, 1], data[i, 2], data[i, 3], data[i, 4] ],
