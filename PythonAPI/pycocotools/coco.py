@@ -84,7 +84,7 @@ class COCO:
             tic = time.time()
             dataset = json.load(open(annotation_file, 'r'))
         if dataset is not None:
-            assert type(dataset)==dict, 'annotation file format {} not supported'.format(type(dataset))
+            assert isinstance(dataset, dict), 'annotation file format {} not supported'.format(type(dataset))
             logger.info('Done (t={:0.2f}s)'.format(time.time()- tic))
             self.dataset = dataset
             self.createIndex()
@@ -207,7 +207,7 @@ class COCO:
         """
         if _isArrayLike(ids):
             return [self.anns[id] for id in ids]
-        elif type(ids) == int:
+        elif isinstance(ids, int):
             return [self.anns[ids]]
 
     def loadCats(self, ids=[]):
@@ -218,7 +218,7 @@ class COCO:
         """
         if _isArrayLike(ids):
             return [self.cats[id] for id in ids]
-        elif type(ids) == int:
+        elif isinstance(ids, int):
             return [self.cats[ids]]
 
     def loadImgs(self, ids=[]):
@@ -229,7 +229,7 @@ class COCO:
         """
         if _isArrayLike(ids):
             return [self.imgs[id] for id in ids]
-        elif type(ids) == int:
+        elif isinstance(ids, int):
             return [self.imgs[ids]]
 
     def showAnns(self, anns, draw_bbox=False):
@@ -265,7 +265,7 @@ class COCO:
             for ann in anns:
                 c = (np.random.random((1, 3))*0.6+0.4).tolist()[0]
                 if 'segmentation' in ann:
-                    if type(ann['segmentation']) == list:
+                    if isinstance(ann['segmentation'], list):
                         # polygon
                         for seg in ann['segmentation']:
                             poly = np.array(seg).reshape((int(len(seg)/2), 2))
@@ -274,7 +274,7 @@ class COCO:
                     else:
                         # mask
                         t = self.imgs[ann['image_id']]
-                        if type(ann['segmentation']['counts']) == list:
+                        if isinstance(ann['segmentation']['counts'], list):
                             rle = maskUtils.frPyObjects([ann['segmentation']], t['height'], t['width'])
                         else:
                             rle = [ann['segmentation']]
@@ -287,7 +287,7 @@ class COCO:
                         for i in range(3):
                             img[:,:,i] = color_mask[i]
                         ax.imshow(np.dstack( (img, m*0.5) ))
-                if 'keypoints' in ann and type(ann['keypoints']) == list:
+                if 'keypoints' in ann and isinstance(ann['keypoints'], list):
                     # turn skeleton into zero-based index
                     sks = np.array(self.loadCats(ann['category_id'])[0]['skeleton'])-1
                     kp = np.array(ann['keypoints'])
@@ -326,13 +326,13 @@ class COCO:
 
         logger.info('Loading and preparing results...')
         tic = time.time()
-        if type(resFile) == str or (PYTHON_VERSION == 2 and type(resFile) == unicode):
+        if isinstance(resFile, str) or (PYTHON_VERSION == 2 and type(resFile) == unicode):
             anns = json.load(open(resFile))
-        elif type(resFile) == np.ndarray:
+        elif isinstance(resFile, np.ndarray):
             anns = self.loadNumpyAnnotations(resFile)
         else:
             anns = resFile
-        assert type(anns) == list, 'results in not an array of objects'
+        assert isinstance(anns, list), 'results in not an array of objects'
         annsImgIds = [ann['image_id'] for ann in anns]
         assert set(annsImgIds) == (set(annsImgIds) & set(self.getImgIds())), \
                'Results do not correspond to current coco set'
@@ -407,7 +407,7 @@ class COCO:
         :return: annotations (python nested list)
         """
         logger.info('Converting ndarray to lists...')
-        assert(type(data) == np.ndarray)
+        assert(isinstance(data, np.ndarray))
         logger.info(data.shape)
         assert(data.shape[1] == 7)
         N = data.shape[0]
@@ -431,12 +431,12 @@ class COCO:
         t = self.imgs[ann['image_id']]
         h, w = t['height'], t['width']
         segm = ann['segmentation']
-        if type(segm) == list:
+        if isinstance(segm, list):
             # polygon -- a single object might consist of multiple parts
             # we merge all parts into one mask rle code
             rles = maskUtils.frPyObjects(segm, h, w)
             rle = maskUtils.merge(rles)
-        elif type(segm['counts']) == list:
+        elif isinstance(segm['counts'], list):
             # uncompressed RLE
             rle = maskUtils.frPyObjects(segm, h, w)
         else:
