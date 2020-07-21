@@ -430,7 +430,7 @@ class COCOeval:
         '''
         def _get_metric_key(ap=1, iouThr=None, areaRng='all', maxDets=100):
             p = self.params
-            template = '{metric:<4s}{thr:<9}/@{area:>6s}(max_dets={dets:>3d})'
+            template = '{metric}@{thr}/{area}(max_dets={dets})'
             str_ = template.format(
                 metric=('mAP' if ap == 1 else 'mAR'),
                 thr=(
@@ -491,8 +491,8 @@ class COCOeval:
             ]
 
             stats = OrderedDict()
-            for args, kwargs in params:
-                key, value = _summarize(*args, **kwargs)
+            for kwargs in params:
+                key, value = _summarize(**kwargs)
                 stats[key] = value
 
             return stats
@@ -511,8 +511,8 @@ class COCOeval:
             ]
 
             stats = OrderedDict()
-            for args, kwargs in params:
-                key, value = _summarize(*args, **kwargs)
+            for kwargs in params:
+                key, value = _summarize(**kwargs)
                 stats[key] = value
 
             return stats
@@ -524,6 +524,7 @@ class COCOeval:
         elif iouType == 'keypoints':
             summarize = _summarizeKps
         self.stats = summarize()
+        return self.stats
 
     def __str__(self):
         self.summarize()

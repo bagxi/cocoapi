@@ -83,9 +83,9 @@ class COCO:
             logger.info('loading annotations into memory...')
             tic = time.time()
             dataset = json.load(open(annotation_file, 'r'))
+            logger.info('Done (t={:0.2f}s)'.format(time.time()- tic))
         if dataset is not None:
             assert isinstance(dataset, dict), 'annotation file format {} not supported'.format(type(dataset))
-            logger.info('Done (t={:0.2f}s)'.format(time.time()- tic))
             self.dataset = dataset
             self.createIndex()
 
